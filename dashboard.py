@@ -102,8 +102,41 @@ def print_weather():
 
     section_end()
 
+COINS = {
+    "bitcoin": "BTC",
+    "ethereum": "ETH",
+    "solana": "SOL"
+}
+
+def fetch_crypto():
+    ids = ",".join(COINS.keys())
+
+    url = f"https://api.coingecko.com/api/v3/simple/price?ids={ids}&vs_currencies=usd"
+
+    data = requests.get(url, timeout=5).json()
+
+    results = []
+
+    for coin, symbol in COINS.items():
+        price = data.get(coin, {}).get("usd", "N/A")
+
+        results.append((symbol, price))
+
+    return results
+
+def print_crypto():
+    coins = fetch_crypto()
+
+    section("Crypto Market", "💎")
+
+    for symbol, price in coins:
+        print(row(symbol, f"${price}"))
+
+    section_end()
+
 
 # ───────────── MAIN ─────────────
 if __name__ == "__main__":
     print_banner()
     print_weather()
+    print_crypto()
