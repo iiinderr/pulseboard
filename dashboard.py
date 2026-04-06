@@ -7,6 +7,15 @@ import json
 import os
 
 
+WEATHER_CACHE = "weather.json"
+CRYPTO_CACHE  = "crypto.json"
+CACHE_TTL     = 60 * 10  # 10 minutes
+
+def is_cache_valid(path):
+    if not os.path.exists(path):
+        return False
+    age = time.time() - os.path.getmtime(path)
+    return age < CACHE_TTL
 
 # ───────────── COLORS ─────────────
 class C:
@@ -51,40 +60,45 @@ WEATHER_CODES = {
 
 def fetch_weather():
     try:
-        # location API
+        # --- location (existing cache logic) ---
         if os.path.exists("location.json"):
             with open("location.json") as f:
-                data = json.load(f)
+                loc = json.load(f)
         else:
-            data = requests.get("https://ipapi.co/json/").json()
+            loc = requests.get("https://ipapi.co/json/", timeout=5).json()
             with open("location.json", "w") as f:
-                json.dump(data, f)
-        
-        # print(data)
+                json.dump(loc, f)
 
-        loc = data
-
-        lat = loc.get("latitude")
-        lon = loc.get("longitude")
+        lat  = loc.get("latitude")
+        lon  = loc.get("longitude")
         city = loc.get("city", "Unknown")
 
-        # fallback if API fails
         if not lat or not lon:
-            lat = 28.61
-            lon = 77.23
-            city = "New Delhi"
+            lat, lon, city = 28.61, 77.23, "New Delhi"
 
-        # Step 2: weather API
-        url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current=temperature_2m,weather_code"
-        data = requests.get(url, timeout=5).json()
+        # --- weather cache ---
+        if is_cache_valid(WEATHER_CACHE):
+            with open(WEATHER_CACHE) as f:
+                data = json.load(f)
+        else:
+            url  = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current=temperature_2m,weather_code"
+            data = requests.get(url, timeout=5).json()
+
+            # only save if we got real data
+            if "current" in data:
+                with open(WEATHER_CACHE, "w") as f:
+                    json.dump(data, f)
 
         current = data.get("current", {})
-        temp = current.get("temperature_2m", "N/A")
-        code = current.get("weather_code", -1)
-
-        desc = WEATHER_CODES.get(code, "Unknown")
+        temp    = current.get("temperature_2m", "N/A")
+        code    = current.get("weather_code", -1)
+        desc    = WEATHER_CODES.get(code, "Unknown")
 
         return city, temp, desc
+
+    except Exception:
+        return "Unknown", "N/A", "API error"
+
 
     except Exception:
         return "Unknown", "N/A", "API error"
@@ -109,20 +123,29 @@ COINS = {
 }
 
 def fetch_crypto():
-    ids = ",".join(COINS.keys())
+    try:
+        if is_cache_valid(CRYPTO_CACHE):
+            with open(CRYPTO_CACHE) as f:
+                data = json.load(f)
+        else:
+            ids  = ",".join(COINS.keys())
+            url  = f"https://api.coingecko.com/api/v3/simple/price?ids={ids}&vs_currencies=usd"
+            data = requests.get(url, timeout=5).json()
 
-    url = f"https://api.coingecko.com/api/v3/simple/price?ids={ids}&vs_currencies=usd"
+            # only save if we got real prices (not an error dict)
+            if any(k in data for k in COINS):
+                with open(CRYPTO_CACHE, "w") as f:
+                    json.dump(data, f)
 
-    data = requests.get(url, timeout=5).json()
+        results = []
+        for coin, symbol in COINS.items():
+            price = data.get(coin, {}).get("usd", "N/A")
+            results.append((symbol, price))
 
-    results = []
+        return results
 
-    for coin, symbol in COINS.items():
-        price = data.get(coin, {}).get("usd", "N/A")
-
-        results.append((symbol, price))
-
-    return results
+    except Exception:
+        return [(symbol, "N/A") for symbol in COINS.values()]
 
 def print_crypto():
     coins = fetch_crypto()
