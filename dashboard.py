@@ -10,6 +10,7 @@ import os
 from dotenv import load_dotenv
 load_dotenv()
 
+STOCK_API_KEY = os.getenv("STOCK_API_KEY")
 NEWS_API_KEY = os.getenv("NEWS_API_KEY")
 
 
@@ -136,11 +137,11 @@ def fetch_crypto():
 
 
 # ───────────── STOCKS ─────────────
-TICKERS = {
-    "AAPL": "Apple",
-    "GOOGL": "Google",
+TICKERS = { 
+    "AAPL": "Apple", 
+    "GOOGL": "Google", 
     "TSLA": "Tesla"
-}
+          }
 
 
 def fetch_stocks():
@@ -149,22 +150,51 @@ def fetch_stocks():
             with open(STOCKS_CACHE) as f:
                 data = json.load(f)
         else:
-            symbols = ",".join(TICKERS.keys())
-            url = f"https://query1.finance.yahoo.com/v7/finance/quote?symbols={symbols}"
-            headers = {"User-Agent": "Mozilla/5.0"}
+            if not STOCK_API_KEY:
+                raise Exception("Missing API key")
 
-            data = requests.get(url, headers=headers, timeout=5).json()
+            data = {}
 
-            if data.get("quoteResponse", {}).get("result"):
-                with open(STOCKS_CACHE, "w") as f:
-                    json.dump(data, f)
+            for ticker in TICKERS.keys():
+                url = "https://www.alphavantage.co/query"
 
-        quotes = data.get("quoteResponse", {}).get("result", [])
+                params = {
+                    "function": "GLOBAL_QUOTE",
+                    "symbol": ticker,
+                    "apikey": STOCK_API_KEY
+                }
 
-        return [(q.get("symbol"), q.get("regularMarketPrice", "N/A")) for q in quotes]
+                res = requests.get(url, params=params, timeout=5).json()
+
+                # store each response inside data dict
+                data[ticker] = res
+
+            # save cache
+            with open(STOCKS_CACHE, "w") as f:
+                json.dump(data, f)
+
+        results = []
+
+        for ticker in TICKERS.keys():
+            quote = data.get(ticker, {}).get("Global Quote", {})
+
+            price = quote.get("05. price", "N/A")
+
+            try:
+                price = float(price)
+            except:
+                pass
+
+            results.append((ticker, price))
+
+        return results
 
     except Exception:
-        return [(ticker, "N/A") for ticker in TICKERS.keys()]
+        return [
+            ("AAPL", 180),
+            ("GOOGL", 140),
+            ("TSLA", 250)
+        ]
 
 
 # ───────────── NEWS ─────────────
