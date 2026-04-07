@@ -1,0 +1,1051 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PulseBoard — Daily Intelligence Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,400&family=Syne:wght@400;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;1,300&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #07111f;
+    --bg2: #0d1a2c;
+    --surface: rgba(10, 19, 34, 0.82);
+    --surface-strong: rgba(8, 15, 27, 0.96);
+    --surface2: rgba(17, 30, 49, 0.88);
+    --border: rgba(125, 163, 214, 0.16);
+    --border-strong: rgba(146, 189, 247, 0.28);
+    --accent: #59d0ff;
+    --accent2: #ffd166;
+    --accent3: #88f7c1;
+    --red: #ff7f90;
+    --green: #71f0a5;
+    --text: #f4f8ff;
+    --muted: #91a0b9;
+    --shadow: 0 24px 70px rgba(0, 0, 0, 0.28);
+    --card-glow: rgba(89, 208, 255, 0.14);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background:
+      radial-gradient(circle at top left, rgba(89, 208, 255, 0.18), transparent 30%),
+      radial-gradient(circle at bottom right, rgba(136, 247, 193, 0.1), transparent 24%),
+      linear-gradient(145deg, var(--bg), var(--bg2));
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 300;
+    min-height: 100vh;
+    overflow-x: hidden;
+    line-height: 1.5;
+  }
+
+  /* Grain overlay */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 512 512' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 999;
+    opacity: 0.4;
+  }
+
+  /* Ambient glow */
+  .ambient {
+    position: fixed;
+    width: 640px; height: 640px;
+    border-radius: 50%;
+    filter: blur(140px);
+    pointer-events: none;
+    z-index: 0;
+  }
+  .ambient-1 { background: rgba(89, 208, 255, 0.14); top: -220px; left: -90px; }
+  .ambient-2 { background: rgba(255, 209, 102, 0.08); bottom: -240px; right: -120px; }
+
+  /* Layout */
+  .shell {
+    max-width: 1240px;
+    margin: 0 auto;
+    padding: 28px 24px 36px;
+    position: relative;
+    z-index: 1;
+  }
+
+  /* Header */
+  header {
+    display: flex;
+    align-items: stretch;
+    justify-content: space-between;
+    gap: 20px;
+    margin-bottom: 28px;
+    padding: 26px 28px;
+    border: 1px solid var(--border);
+    border-radius: 24px;
+    background:
+      linear-gradient(135deg, rgba(89, 208, 255, 0.08), transparent 38%),
+      linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0)),
+      var(--surface);
+    backdrop-filter: blur(16px);
+    box-shadow: var(--shadow);
+  }
+  .header-copy {
+    max-width: 620px;
+  }
+  .eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 1.8px;
+    text-transform: uppercase;
+    color: var(--accent3);
+    padding: 6px 10px;
+    border-radius: 999px;
+    border: 1px solid rgba(136, 247, 193, 0.2);
+    background: rgba(136, 247, 193, 0.08);
+    margin-bottom: 14px;
+  }
+  .logo {
+    font-family: 'Syne', sans-serif;
+    font-weight: 800;
+    font-size: clamp(34px, 5vw, 56px);
+    line-height: 0.95;
+    letter-spacing: -1.8px;
+    color: var(--text);
+  }
+  .logo span {
+    color: var(--accent);
+    text-shadow: 0 0 28px rgba(89, 208, 255, 0.3);
+  }
+  .tagline {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 15px;
+    color: var(--muted);
+    letter-spacing: 0.1px;
+    margin-top: 10px;
+    max-width: 48ch;
+  }
+  .header-right {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 18px;
+    min-width: 280px;
+    flex-direction: column;
+  }
+  .header-panel {
+    width: 100%;
+    padding: 16px 18px;
+    border-radius: 18px;
+    border: 1px solid var(--border);
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.01));
+  }
+  .header-meta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 14px;
+  }
+  .live-dot {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    color: var(--text);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+  .dot {
+    width: 8px; height: 8px;
+    background: var(--green);
+    border-radius: 50%;
+    animation: pulse 2s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.5; transform: scale(0.8); }
+  }
+  #clock {
+    font-family: 'DM Mono', monospace;
+    font-size: 13px;
+    color: var(--text);
+    background: rgba(255, 255, 255, 0.04);
+    padding: 8px 12px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+  }
+  .refresh-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    padding: 12px 16px;
+    background: linear-gradient(135deg, var(--accent), #2579ff);
+    color: #06101f;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 14px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s, filter 0.2s;
+    font-weight: 700;
+    box-shadow: 0 12px 30px rgba(37, 121, 255, 0.24);
+  }
+  .refresh-btn:hover { transform: translateY(-1px); filter: brightness(1.04); }
+  .refresh-btn:active { transform: translateY(0); }
+  .refresh-btn svg { transition: transform 0.4s; }
+  .refresh-btn.spinning svg { animation: spin 1s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .mini-stats {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+  .mini-stat {
+    padding: 10px 12px;
+    border-radius: 14px;
+    border: 1px solid var(--border);
+    background: rgba(255, 255, 255, 0.03);
+  }
+  .mini-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 1.2px;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 4px;
+  }
+  .mini-value {
+    font-family: 'Syne', sans-serif;
+    font-size: 16px;
+    font-weight: 700;
+  }
+
+  /* Summary bar */
+  .summary-bar {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 14px;
+    margin-bottom: 28px;
+  }
+  .summary-card {
+    background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.015)), var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    padding: 18px 20px;
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    transition: border-color 0.2s, transform 0.2s, box-shadow 0.2s;
+    box-shadow: var(--shadow);
+  }
+  .summary-card:hover {
+    border-color: var(--border-strong);
+    transform: translateY(-2px);
+    box-shadow: 0 20px 44px rgba(0,0,0,0.24);
+  }
+  .summary-icon {
+    width: 46px;
+    height: 46px;
+    display: grid;
+    place-items: center;
+    font-size: 22px;
+    flex-shrink: 0;
+    border-radius: 14px;
+    background: linear-gradient(135deg, rgba(89, 208, 255, 0.16), rgba(255, 209, 102, 0.08));
+    border: 1px solid rgba(255, 255, 255, 0.06);
+  }
+  .summary-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--muted);
+    margin-bottom: 2px;
+  }
+  .summary-value {
+    font-family: 'Syne', sans-serif;
+    font-size: 18px;
+    font-weight: 600;
+  }
+
+  /* Grid */
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(12, 1fr);
+    gap: 20px;
+  }
+
+  /* Cards */
+  .card {
+    position: relative;
+    background: linear-gradient(180deg, rgba(255,255,255,0.045), rgba(255,255,255,0.015)), var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 22px;
+    overflow: hidden;
+    transition: box-shadow 0.3s, transform 0.3s, border-color 0.3s;
+    animation: fadeUp 0.5s ease both;
+    box-shadow: var(--shadow);
+    backdrop-filter: blur(16px);
+  }
+  .card::before {
+    content: '';
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.18), transparent);
+  }
+  .card:hover {
+    border-color: var(--border-strong);
+    transform: translateY(-3px);
+    box-shadow: 0 28px 80px rgba(0,0,0,0.3), 0 0 0 1px rgba(89, 208, 255, 0.08);
+  }
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(16px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .card:nth-child(1) { animation-delay: 0.05s; }
+  .card:nth-child(2) { animation-delay: 0.1s; }
+  .card:nth-child(3) { animation-delay: 0.15s; }
+  .card:nth-child(4) { animation-delay: 0.2s; }
+
+  .card-header {
+    padding: 20px 22px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid var(--border);
+  }
+  .card-title {
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: 14px;
+    letter-spacing: 0.3px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .card-badge {
+    font-family: 'DM Mono', monospace;
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    padding: 5px 9px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--muted);
+    border: 1px solid var(--border);
+  }
+  .card-body { padding: 22px; }
+  #weather-card { grid-column: span 5; }
+  #crypto-card { grid-column: span 7; }
+  #stocks-card { grid-column: span 5; }
+
+  /* Weather */
+  .weather-hero {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    margin-bottom: 20px;
+  }
+  .weather-emoji { font-size: 52px; }
+  .weather-temp {
+    font-family: 'Syne', sans-serif;
+    font-weight: 800;
+    font-size: 56px;
+    line-height: 1;
+    letter-spacing: -2px;
+  }
+  .weather-location {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-top: 4px;
+  }
+  .weather-desc {
+    font-size: 13px;
+    color: var(--muted);
+    margin-top: 2px;
+    text-transform: capitalize;
+  }
+  .weather-stats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+  }
+  .weather-stat {
+    background: var(--surface2);
+    border-radius: 14px;
+    padding: 12px 14px;
+    border: 1px solid var(--border);
+  }
+  .stat-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--muted);
+    margin-bottom: 4px;
+  }
+  .stat-value {
+    font-family: 'Syne', sans-serif;
+    font-weight: 600;
+    font-size: 14px;
+  }
+
+  /* Crypto */
+  .crypto-list { display: flex; flex-direction: column; gap: 10px; }
+  .crypto-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 14px 16px;
+    transition: border-color 0.2s, transform 0.2s;
+  }
+  .crypto-row:hover { border-color: var(--border-strong); transform: translateX(2px); }
+  .crypto-left { display: flex; align-items: center; gap: 10px; }
+  .crypto-symbol {
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: 13px;
+    background: rgba(89, 208, 255, 0.12);
+    padding: 6px 10px;
+    border-radius: 10px;
+    min-width: 44px;
+    text-align: center;
+  }
+  .crypto-name { font-size: 12px; color: var(--muted); }
+  .crypto-right { text-align: right; }
+  .crypto-price {
+    font-family: 'DM Mono', monospace;
+    font-size: 13px;
+    font-weight: 500;
+  }
+  .crypto-change {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    margin-top: 2px;
+  }
+  .up { color: var(--green); }
+  .down { color: var(--red); }
+  .neutral { color: var(--muted); }
+
+  /* Stocks */
+  .stocks-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+  .stock-card {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 16px;
+    transition: border-color 0.2s, transform 0.2s;
+    position: relative;
+    overflow: hidden;
+  }
+  .stock-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+  }
+  .stock-card.bull::before { background: var(--green); }
+  .stock-card.bear::before { background: var(--red); }
+  .stock-card:hover { border-color: var(--border-strong); transform: translateY(-2px); }
+  .stock-ticker {
+    font-family: 'Syne', sans-serif;
+    font-weight: 800;
+    font-size: 16px;
+    letter-spacing: -0.5px;
+  }
+  .stock-name { font-size: 11px; color: var(--muted); margin-top: 1px; }
+  .stock-price {
+    font-family: 'DM Mono', monospace;
+    font-size: 18px;
+    font-weight: 500;
+    margin-top: 8px;
+  }
+  .stock-meta { display: flex; align-items: center; justify-content: space-between; margin-top: 4px; }
+  .stock-change { font-family: 'DM Mono', monospace; font-size: 11px; }
+  .stock-vol { font-family: 'DM Mono', monospace; font-size: 10px; color: var(--muted); }
+
+  /* News */
+  .news-card-full { grid-column: 1 / -1; }
+  .news-list { display: flex; flex-direction: column; gap: 0; }
+  .news-item {
+    display: flex;
+    gap: 16px;
+    padding: 16px 0;
+    border-bottom: 1px solid var(--border);
+    transition: transform 0.2s;
+    cursor: pointer;
+  }
+  .news-item:last-child { border-bottom: none; padding-bottom: 0; }
+  .news-item:hover { transform: translateX(4px); }
+  .news-item:hover .news-title { color: var(--accent); }
+  .news-num {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+    padding-top: 2px;
+    min-width: 20px;
+    flex-shrink: 0;
+  }
+  .news-content { flex: 1; }
+  .news-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 1.4;
+    transition: color 0.2s;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .news-meta {
+    display: flex;
+    gap: 12px;
+    margin-top: 5px;
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+  }
+  .news-tag {
+    color: var(--accent2);
+    font-size: 10px;
+  }
+
+  /* Loading state */
+  .loading-shimmer {
+    background: linear-gradient(90deg, var(--surface2) 25%, var(--border) 50%, var(--surface2) 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+    border-radius: 4px;
+    height: 14px;
+  }
+  @keyframes shimmer {
+    from { background-position: 200% 0; }
+    to { background-position: -200% 0; }
+  }
+
+  /* Error state */
+  .error-msg {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    color: var(--red);
+    padding: 12px;
+    background: rgba(247, 106, 106, 0.08);
+    border: 1px solid rgba(247, 106, 106, 0.2);
+    border-radius: 6px;
+    text-align: center;
+  }
+
+  /* Footer */
+  footer {
+    margin-top: 32px;
+    padding: 18px 20px 0;
+    border-top: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+  }
+  .footer-links { display: flex; gap: 16px; }
+  .footer-links a {
+    color: var(--muted);
+    text-decoration: none;
+    transition: color 0.2s;
+  }
+  .footer-links a:hover { color: var(--accent); }
+
+  /* Responsive */
+  @media (max-width: 768px) {
+    .shell { padding: 18px 14px 28px; }
+    header {
+      flex-direction: column;
+      padding: 22px 18px;
+      border-radius: 20px;
+    }
+    .header-right { min-width: 0; width: 100%; }
+    .grid { grid-template-columns: 1fr; }
+    #weather-card, #crypto-card, #stocks-card { grid-column: auto; }
+    .news-card-full { grid-column: 1; }
+    .summary-bar { grid-template-columns: repeat(2, 1fr); }
+    .weather-temp { font-size: 40px; }
+    .stocks-grid { grid-template-columns: 1fr 1fr; }
+    .card, .summary-card { border-radius: 18px; }
+  }
+
+  @media (max-width: 560px) {
+    .summary-bar,
+    .mini-stats,
+    .weather-stats,
+    .stocks-grid {
+      grid-template-columns: 1fr;
+    }
+    .weather-hero {
+      align-items: flex-start;
+      flex-direction: column;
+    }
+    .card-header,
+    .card-body {
+      padding-left: 18px;
+      padding-right: 18px;
+    }
+    footer {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 10px;
+    }
+  }
+</style>
+</head>
+<body>
+
+<div class="ambient ambient-1"></div>
+<div class="ambient ambient-2"></div>
+
+<div class="shell">
+
+  <!-- HEADER -->
+  <header>
+    <div class="header-copy">
+      <div class="eyebrow">Realtime Briefing Layer</div>
+      <div class="logo">Pulse<span>Board</span></div>
+      <div class="tagline">A sharper command-center view for weather, markets, and headlines in one live dashboard.</div>
+    </div>
+    <div class="header-right">
+      <div class="header-panel">
+        <div class="header-meta">
+          <div class="live-dot"><span class="dot"></span> Live Feed</div>
+          <div id="clock">--:--:--</div>
+        </div>
+        <div class="mini-stats">
+          <div class="mini-stat">
+            <div class="mini-label">Cadence</div>
+            <div class="mini-value">5 min</div>
+          </div>
+          <div class="mini-stat">
+            <div class="mini-label">Panels</div>
+            <div class="mini-value">4 Live</div>
+          </div>
+        </div>
+      </div>
+      <button class="refresh-btn" onclick="fetchAll()">
+        <svg id="refresh-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M23 4v6h-6"/><path d="M1 20v-6h6"/>
+          <path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>
+        </svg>
+        Refresh Dashboard
+      </button>
+    </div>
+  </header>
+
+  <!-- SUMMARY BAR -->
+  <div class="summary-bar">
+    <div class="summary-card">
+      <div class="summary-icon">🌤</div>
+      <div>
+        <div class="summary-label">Weather</div>
+        <div class="summary-value" id="sum-weather">—</div>
+      </div>
+    </div>
+    <div class="summary-card">
+      <div class="summary-icon">₿</div>
+      <div>
+        <div class="summary-label">Bitcoin</div>
+        <div class="summary-value" id="sum-crypto">—</div>
+      </div>
+    </div>
+    <div class="summary-card">
+      <div class="summary-icon">📈</div>
+      <div>
+        <div class="summary-label">Apple</div>
+        <div class="summary-value" id="sum-stocks">—</div>
+      </div>
+    </div>
+    <div class="summary-card">
+      <div class="summary-icon">📰</div>
+      <div>
+        <div class="summary-label">Headlines</div>
+        <div class="summary-value" id="sum-news">—</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MAIN GRID -->
+  <div class="grid">
+
+    <!-- WEATHER CARD -->
+    <div class="card" id="weather-card">
+      <div class="card-header">
+        <div class="card-title">🌡 Weather</div>
+        <span class="card-badge" id="weather-updated">Loading…</span>
+      </div>
+      <div class="card-body" id="weather-body">
+        <div class="loading-shimmer" style="width:70%; margin-bottom:12px;"></div>
+        <div class="loading-shimmer" style="width:50%; height:40px; margin-bottom:12px;"></div>
+        <div class="loading-shimmer" style="width:100%; height:60px;"></div>
+      </div>
+    </div>
+
+    <!-- CRYPTO CARD -->
+    <div class="card" id="crypto-card">
+      <div class="card-header">
+        <div class="card-title">💎 Crypto Markets</div>
+        <span class="card-badge" id="crypto-updated">Loading…</span>
+      </div>
+      <div class="card-body" id="crypto-body">
+        <div class="loading-shimmer" style="width:100%; height:44px; margin-bottom:10px;"></div>
+        <div class="loading-shimmer" style="width:100%; height:44px; margin-bottom:10px;"></div>
+        <div class="loading-shimmer" style="width:100%; height:44px;"></div>
+      </div>
+    </div>
+
+    <!-- STOCKS CARD -->
+    <div class="card" id="stocks-card">
+      <div class="card-header">
+        <div class="card-title">📊 Stock Market</div>
+        <span class="card-badge" id="stocks-updated">Loading…</span>
+      </div>
+      <div class="card-body" id="stocks-body">
+        <div class="loading-shimmer" style="width:100%; height:80px; margin-bottom:10px;"></div>
+        <div class="loading-shimmer" style="width:100%; height:80px;"></div>
+      </div>
+    </div>
+
+    <!-- NEWS CARD (full width) -->
+    <div class="card news-card-full" id="news-card">
+      <div class="card-header">
+        <div class="card-title">📰 Top Headlines</div>
+        <span class="card-badge" id="news-updated">Loading…</span>
+      </div>
+      <div class="card-body" id="news-body">
+        <div class="loading-shimmer" style="width:90%; margin-bottom:8px;"></div>
+        <div class="loading-shimmer" style="width:70%; margin-bottom:16px;"></div>
+        <div class="loading-shimmer" style="width:95%; margin-bottom:8px;"></div>
+        <div class="loading-shimmer" style="width:60%; margin-bottom:16px;"></div>
+        <div class="loading-shimmer" style="width:85%; margin-bottom:8px;"></div>
+        <div class="loading-shimmer" style="width:50%;"></div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- FOOTER -->
+  <footer>
+    <span>PulseBoard · Built with Open APIs · Data updates every refresh</span>
+    <div class="footer-links">
+      <a href="https://open-meteo.com" target="_blank">Weather API</a>
+      <a href="https://coingecko.com" target="_blank">CoinGecko</a>
+      <a href="https://finance.yahoo.com" target="_blank">Market Data</a>
+      <a href="https://newsdata.io" target="_blank">NewsData</a>
+    </div>
+  </footer>
+
+</div>
+
+<script>
+/* ===== CLOCK ===== */
+function updateClock() {
+  const now = new Date();
+  document.getElementById('clock').textContent =
+    now.toLocaleTimeString('en-IN', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+/* ===== HELPERS ===== */
+const fmt = (n, decimals = 2) =>
+  n == null ? '—' : Number(n).toLocaleString('en-US', { maximumFractionDigits: decimals, minimumFractionDigits: decimals });
+
+const fmtUSD = (n) => n == null ? '—' : `$${fmt(n)}`;
+
+const badge = (id, text) => {
+  const el = document.getElementById(id);
+  if (el) el.textContent = text;
+};
+
+function now() {
+  return new Date().toLocaleTimeString('en-IN', { hour12: true, hour: '2-digit', minute: '2-digit' });
+}
+
+function spinning(on) {
+  const btn = document.querySelector('.refresh-btn');
+  const icon = document.getElementById('refresh-icon');
+  btn.classList.toggle('spinning', on);
+  btn.disabled = on;
+}
+
+/* ===== WEATHER ===== */
+async function fetchWeather() {
+  try {
+    // Use Open-Meteo (free, no key) + ip-api for location
+    const locRes = await fetch('https://ipapi.co/json/');
+    const loc = await locRes.json();
+    const { latitude, longitude, city, country } = loc;
+
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,relative_humidity_2m,wind_speed_10m,weather_code,apparent_temperature&wind_speed_unit=kmh`;
+    const res = await fetch(url);
+    const d = await res.json();
+    const c = d.current;
+
+    const weatherEmojis = {
+      0: '☀️', 1: '🌤', 2: '⛅', 3: '☁️',
+      45: '🌫', 48: '🌫', 51: '🌦', 53: '🌦', 55: '🌧',
+      61: '🌧', 63: '🌧', 65: '🌧', 71: '❄️', 73: '❄️', 75: '❄️',
+      80: '🌦', 81: '🌧', 82: '⛈', 95: '⛈', 96: '⛈', 99: '⛈'
+    };
+    const weatherDescs = {
+      0: 'Clear sky', 1: 'Mainly clear', 2: 'Partly cloudy', 3: 'Overcast',
+      45: 'Foggy', 48: 'Icy fog', 51: 'Light drizzle', 53: 'Drizzle', 55: 'Heavy drizzle',
+      61: 'Light rain', 63: 'Rain', 65: 'Heavy rain', 71: 'Light snow', 73: 'Snow', 75: 'Heavy snow',
+      80: 'Rain showers', 81: 'Showers', 82: 'Violent showers', 95: 'Thunderstorm', 96: 'Hail storm', 99: 'Hail'
+    };
+    const code = c.weather_code;
+    const emoji = weatherEmojis[code] || '🌡';
+    const desc = weatherDescs[code] || 'Unknown';
+
+    const html = `
+      <div class="weather-hero">
+        <div class="weather-emoji">${emoji}</div>
+        <div>
+          <div class="weather-temp">${Math.round(c.temperature_2m)}°C</div>
+          <div class="weather-location">📍 ${city}, ${country}</div>
+          <div class="weather-desc">${desc}</div>
+        </div>
+      </div>
+      <div class="weather-stats">
+        <div class="weather-stat">
+          <div class="stat-label">Feels Like</div>
+          <div class="stat-value">${Math.round(c.apparent_temperature)}°C</div>
+        </div>
+        <div class="weather-stat">
+          <div class="stat-label">Humidity</div>
+          <div class="stat-value">${c.relative_humidity_2m}%</div>
+        </div>
+        <div class="weather-stat">
+          <div class="stat-label">Wind</div>
+          <div class="stat-value">${Math.round(c.wind_speed_10m)} km/h</div>
+        </div>
+      </div>`;
+
+    document.getElementById('weather-body').innerHTML = html;
+    badge('weather-updated', `Updated ${now()}`);
+    document.getElementById('sum-weather').textContent = `${Math.round(c.temperature_2m)}°C ${emoji}`;
+  } catch (e) {
+    document.getElementById('weather-body').innerHTML = `<div class="error-msg">⚠ Weather data unavailable. ${e.message}</div>`;
+    badge('weather-updated', 'Error');
+  }
+}
+
+/* ===== CRYPTO ===== */
+async function fetchCrypto() {
+  try {
+    const res = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,solana,cardano,dogecoin&vs_currencies=usd&include_24hr_change=true');
+    const d = await res.json();
+
+    const coins = [
+      { id: 'bitcoin', sym: 'BTC', name: 'Bitcoin' },
+      { id: 'ethereum', sym: 'ETH', name: 'Ethereum' },
+      { id: 'solana', sym: 'SOL', name: 'Solana' },
+      { id: 'cardano', sym: 'ADA', name: 'Cardano' },
+      { id: 'dogecoin', sym: 'DOGE', name: 'Dogecoin' },
+    ];
+
+    const rows = coins.map(coin => {
+      const info = d[coin.id];
+      if (!info) return '';
+      const price = info.usd;
+      const change = info.usd_24h_change;
+      const dir = change > 0 ? 'up' : change < 0 ? 'down' : 'neutral';
+      const arrow = change > 0 ? '▲' : change < 0 ? '▼' : '—';
+      const priceStr = price < 1 ? `$${price.toFixed(4)}` : fmtUSD(price);
+      return `
+        <div class="crypto-row">
+          <div class="crypto-left">
+            <span class="crypto-symbol">${coin.sym}</span>
+            <span class="crypto-name">${coin.name}</span>
+          </div>
+          <div class="crypto-right">
+            <div class="crypto-price">${priceStr}</div>
+            <div class="crypto-change ${dir}">${arrow} ${Math.abs(change).toFixed(2)}%</div>
+          </div>
+        </div>`;
+    }).join('');
+
+    document.getElementById('crypto-body').innerHTML = `<div class="crypto-list">${rows}</div>`;
+    badge('crypto-updated', `Updated ${now()}`);
+
+    const btc = d['bitcoin'];
+    if (btc) {
+      const chg = btc.usd_24h_change;
+      const dir = chg > 0 ? '▲' : '▼';
+      document.getElementById('sum-crypto').textContent = `${fmtUSD(btc.usd)} ${dir}`;
+      document.getElementById('sum-crypto').className = chg > 0 ? 'summary-value up' : 'summary-value down';
+    }
+  } catch (e) {
+    document.getElementById('crypto-body').innerHTML = `<div class="error-msg">⚠ Crypto data unavailable. ${e.message}</div>`;
+    badge('crypto-updated', 'Error');
+  }
+}
+
+/* ===== STOCKS (Yahoo Finance via allorigins proxy) ===== */
+async function fetchStocks() {
+  const tickers = ['AAPL', 'GOOGL', 'MSFT', 'TSLA', 'AMZN', 'NVDA'];
+  const names = { AAPL: 'Apple', GOOGL: 'Alphabet', MSFT: 'Microsoft', TSLA: 'Tesla', AMZN: 'Amazon', NVDA: 'NVIDIA' };
+
+  try {
+    const symbols = tickers.join('%2C');
+    const url = `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${symbols}`;
+    const proxy = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
+    const res = await fetch(proxy);
+    const outer = await res.json();
+    const data = JSON.parse(outer.contents);
+    const quotes = data.quoteResponse.result;
+
+    const cards = quotes.map(q => {
+      const change = q.regularMarketChangePercent;
+      const dir = change >= 0 ? 'bull' : 'bear';
+      const cls = change >= 0 ? 'up' : 'down';
+      const arrow = change >= 0 ? '▲' : '▼';
+      const vol = q.regularMarketVolume >= 1e6
+        ? `${(q.regularMarketVolume / 1e6).toFixed(1)}M`
+        : `${(q.regularMarketVolume / 1e3).toFixed(0)}K`;
+      return `
+        <div class="stock-card ${dir}">
+          <div class="stock-ticker">${q.symbol}</div>
+          <div class="stock-name">${names[q.symbol] || q.shortName}</div>
+          <div class="stock-price">${fmtUSD(q.regularMarketPrice)}</div>
+          <div class="stock-meta">
+            <span class="stock-change ${cls}">${arrow} ${Math.abs(change).toFixed(2)}%</span>
+            <span class="stock-vol">Vol ${vol}</span>
+          </div>
+        </div>`;
+    }).join('');
+
+    document.getElementById('stocks-body').innerHTML = `<div class="stocks-grid">${cards}</div>`;
+    badge('stocks-updated', `Updated ${now()}`);
+
+    const sp = quotes.find(q => q.symbol === 'AAPL');
+    if (sp) {
+      const chg = sp.regularMarketChangePercent;
+      const dir = chg >= 0 ? '▲' : '▼';
+      document.getElementById('sum-stocks').textContent = `AAPL ${fmtUSD(sp.regularMarketPrice)}`;
+    }
+  } catch (e) {
+    // Fallback: show simulated data with disclaimer
+    const mock = [
+      { t: 'AAPL', n: 'Apple', p: 218.24, c: 1.32 },
+      { t: 'GOOGL', n: 'Alphabet', p: 175.08, c: -0.54 },
+      { t: 'MSFT', n: 'Microsoft', p: 412.60, c: 0.87 },
+      { t: 'TSLA', n: 'Tesla', p: 285.43, c: -2.11 },
+      { t: 'AMZN', n: 'Amazon', p: 198.72, c: 1.65 },
+      { t: 'NVDA', n: 'NVIDIA', p: 875.40, c: 3.22 },
+    ];
+    const cards = mock.map(q => {
+      const dir = q.c >= 0 ? 'bull' : 'bear';
+      const cls = q.c >= 0 ? 'up' : 'down';
+      const arrow = q.c >= 0 ? '▲' : '▼';
+      return `
+        <div class="stock-card ${dir}">
+          <div class="stock-ticker">${q.t}</div>
+          <div class="stock-name">${q.n}</div>
+          <div class="stock-price">${fmtUSD(q.p)}</div>
+          <div class="stock-meta">
+            <span class="stock-change ${cls}">${arrow} ${Math.abs(q.c).toFixed(2)}%</span>
+            <span class="stock-vol">Simulated</span>
+          </div>
+        </div>`;
+    }).join('');
+    document.getElementById('stocks-body').innerHTML = `
+      <div class="stocks-grid">${cards}</div>
+      <p style="font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);margin-top:10px;text-align:center;">⚠ Live data unavailable — showing demo values</p>`;
+    badge('stocks-updated', 'Demo mode');
+    document.getElementById('sum-stocks').textContent = 'Demo mode';
+  }
+}
+
+/* ===== NEWS ===== */
+async function fetchNews() {
+  const categories = ['Technology', 'Finance', 'World', 'Science', 'Business'];
+  // Using NewsData.io public demo endpoint (no key for top stories)
+  // Fallback to curated demo if blocked
+  try {
+    const res = await fetch('https://newsdata.io/api/1/news?apikey=pub_demo&language=en&category=technology,business,science', { signal: AbortSignal.timeout(6000) });
+    const d = await res.json();
+    if (d.status !== 'success') throw new Error('API error');
+
+    const articles = (d.results || []).slice(0, 6);
+    renderNews(articles.map((a, i) => ({
+      title: a.title,
+      source: a.source_id || a.source || 'Source',
+      category: categories[i % categories.length],
+      url: a.link,
+      pubDate: a.pubDate ? new Date(a.pubDate).toLocaleDateString() : 'Today'
+    })));
+    badge('news-updated', `Updated ${now()}`);
+    document.getElementById('sum-news').textContent = `${articles.length} articles`;
+  } catch {
+    // Curated fallback news
+    const fallback = [
+      { title: "NVIDIA unveils next-gen Blackwell Ultra GPU architecture at GTC 2025", source: "TechCrunch", category: "Technology", pubDate: "Today" },
+      { title: "Federal Reserve signals potential rate cut as inflation cools to 2.8%", source: "Reuters", category: "Finance", pubDate: "Today" },
+      { title: "OpenAI releases GPT-5 with multimodal reasoning and 1M context window", source: "The Verge", category: "AI", pubDate: "Today" },
+      { title: "India's stock market hits record high driven by IT and banking sectors", source: "Economic Times", category: "Markets", pubDate: "Today" },
+      { title: "Scientists achieve room-temperature superconductivity at ambient pressure", source: "Nature", category: "Science", pubDate: "Today" },
+      { title: "Apple announces Vision Pro 2 with 30% lighter form factor and spatial AI", source: "Bloomberg", category: "Technology", pubDate: "Today" },
+    ];
+    renderNews(fallback);
+    badge('news-updated', 'Demo headlines');
+    document.getElementById('sum-news').textContent = '6 articles';
+  }
+}
+
+function renderNews(articles) {
+  const html = articles.map((a, i) => `
+    <div class="news-item" onclick="${a.url ? `window.open('${a.url}','_blank')` : ''}">
+      <div class="news-num">0${i + 1}</div>
+      <div class="news-content">
+        <div class="news-title">${a.title}</div>
+        <div class="news-meta">
+          <span>${a.source}</span>
+          <span class="news-tag">${a.category}</span>
+          <span>${a.pubDate}</span>
+        </div>
+      </div>
+    </div>`).join('');
+  document.getElementById('news-body').innerHTML = `<div class="news-list">${html}</div>`;
+}
+
+/* ===== FETCH ALL ===== */
+async function fetchAll() {
+  spinning(true);
+  await Promise.allSettled([fetchWeather(), fetchCrypto(), fetchStocks(), fetchNews()]);
+  spinning(false);
+}
+
+// Initial load
+fetchAll();
+
+// Auto-refresh every 5 minutes
+setInterval(fetchAll, 5 * 60 * 1000);
+</script>
+</body>
+</html>
