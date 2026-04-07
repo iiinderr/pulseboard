@@ -9,6 +9,7 @@ import os
 
 WEATHER_CACHE = "weather.json"
 CRYPTO_CACHE  = "crypto.json"
+STOCKS_CAHCE = "stocks.json"
 CACHE_TTL     = 60 * 10  # 10 minutes
 
 def is_cache_valid(path):
@@ -157,9 +158,55 @@ def print_crypto():
 
     section_end()
 
+TICKERS = {
+    "AAPL": "Apple",
+    "GOOGL": "Google",
+    "TSLA": "Tesla"
+}
+
+def fetch_stocks():
+    try:
+        if is_cache_valid(STOCKS_CAHCE):
+            with open(STOCKS_CAHCE) as f:
+                data = json.load(f)
+        else:
+            symbols = ",".join(TICKERS.keys())
+            url = f"https://query1.finance.yahoo.com/v7/finance/quote?symbols={symbols}"
+            headers = {"User-Agent": "Mozilla/5.0"}
+            data = requests.get(url, headers=headers, timeout=5).json()
+
+            # only save if we got real quotes
+            quotes = data.get("quoteResponse", {}).get("result", [])
+            if quotes:
+                with open(STOCKS_CAHCE, "w") as f:
+                    json.dump(data, f)
+
+        results = []
+        quotes = data.get("quoteResponse", {}).get("result", [])
+        for q in quotes:
+            ticker = q.get("symbol")
+            price = q.get("regularMarketPrice", "N/A")
+            results.append((ticker, price))
+
+        return results
+
+    except Exception:
+        return [(ticker, "N/A") for ticker in TICKERS.keys()]
+
+def print_stocks():
+    stocks = fetch_stocks()
+
+    section("Stock Market", "📈")
+
+    for ticker, price in stocks:
+        print(row(ticker, f"${price}"))
+
+    section_end()
+
 
 # ───────────── MAIN ─────────────
 if __name__ == "__main__":
     print_banner()
     print_weather()
     print_crypto()
+    print_stocks()
