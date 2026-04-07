@@ -6,17 +6,26 @@ import requests
 import json
 import os
 
+# ───────────── ENV LOAD ─────────────
+from dotenv import load_dotenv
+load_dotenv()
 
+NEWS_API_KEY = os.getenv("NEWS_API_KEY")
+
+
+# ───────────── CACHE CONFIG ─────────────
 WEATHER_CACHE = "weather.json"
 CRYPTO_CACHE  = "crypto.json"
-STOCKS_CAHCE = "stocks.json"
+STOCKS_CACHE  = "stocks.json"
 CACHE_TTL     = 60 * 10  # 10 minutes
+
 
 def is_cache_valid(path):
     if not os.path.exists(path):
         return False
     age = time.time() - os.path.getmtime(path)
     return age < CACHE_TTL
+
 
 # ───────────── COLORS ─────────────
 class C:
@@ -31,13 +40,12 @@ def g(text, color):
     return f"{color}{text}{C.RESET}"
 
 
-# ───────────── BANNER ─────────────
+# ───────────── UI ─────────────
 def print_banner():
     print(g("PulseBoard Dashboard", C.CYAN))
     print(g(f"Time: {datetime.datetime.now()}", C.WHITE))
 
 
-# ───────────── UI HELPERS ─────────────
 def section(title, emoji):
     print(g(f"\n┌─ {emoji} {title} ─" + "─" * 40, C.CYAN))
 
@@ -50,7 +58,7 @@ def row(label, value):
     return f"  {label.ljust(20)} {value}"
 
 
-# ───────────── WEATHER DATA ─────────────
+# ───────────── WEATHER ─────────────
 WEATHER_CODES = {
     0: "Clear sky",
     1: "Mainly clear",
@@ -61,7 +69,6 @@ WEATHER_CODES = {
 
 def fetch_weather():
     try:
-        # --- location (existing cache logic) ---
         if os.path.exists("location.json"):
             with open("location.json") as f:
                 loc = json.load(f)
@@ -70,30 +77,29 @@ def fetch_weather():
             with open("location.json", "w") as f:
                 json.dump(loc, f)
 
-        lat  = loc.get("latitude")
-        lon  = loc.get("longitude")
+        lat = loc.get("latitude")
+        lon = loc.get("longitude")
         city = loc.get("city", "Unknown")
 
         if not lat or not lon:
             lat, lon, city = 28.61, 77.23, "New Delhi"
 
-        # --- weather cache ---
         if is_cache_valid(WEATHER_CACHE):
             with open(WEATHER_CACHE) as f:
                 data = json.load(f)
         else:
-            url  = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current=temperature_2m,weather_code"
+            url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current=temperature_2m,weather_code"
             data = requests.get(url, timeout=5).json()
 
-            # only save if we got real data
             if "current" in data:
                 with open(WEATHER_CACHE, "w") as f:
                     json.dump(data, f)
 
         current = data.get("current", {})
-        temp    = current.get("temperature_2m", "N/A")
-        code    = current.get("weather_code", -1)
-        desc    = WEATHER_CODES.get(code, "Unknown")
+        temp = current.get("temperature_2m", "N/A")
+        code = current.get("weather_code", -1)
+
+        desc = WEATHER_CODES.get(code, "Unknown")
 
         return city, temp, desc
 
@@ -101,27 +107,13 @@ def fetch_weather():
         return "Unknown", "N/A", "API error"
 
 
-    except Exception:
-        return "Unknown", "N/A", "API error"
-
-
-# ───────────── PRINT WEATHER ─────────────
-def print_weather():
-    city, temp, desc = fetch_weather()
-
-    section("Weather Report", "🌡")
-
-    print(row("Location", city))
-    print(row("Temperature", g(f"{temp}°C", C.GREEN)))
-    print(row("Condition", desc))
-
-    section_end()
-
+# ───────────── CRYPTO ─────────────
 COINS = {
     "bitcoin": "BTC",
     "ethereum": "ETH",
     "solana": "SOL"
 }
+
 
 def fetch_crypto():
     try:
@@ -129,78 +121,118 @@ def fetch_crypto():
             with open(CRYPTO_CACHE) as f:
                 data = json.load(f)
         else:
-            ids  = ",".join(COINS.keys())
-            url  = f"https://api.coingecko.com/api/v3/simple/price?ids={ids}&vs_currencies=usd"
+            ids = ",".join(COINS.keys())
+            url = f"https://api.coingecko.com/api/v3/simple/price?ids={ids}&vs_currencies=usd"
             data = requests.get(url, timeout=5).json()
 
-            # only save if we got real prices (not an error dict)
             if any(k in data for k in COINS):
                 with open(CRYPTO_CACHE, "w") as f:
                     json.dump(data, f)
 
-        results = []
-        for coin, symbol in COINS.items():
-            price = data.get(coin, {}).get("usd", "N/A")
-            results.append((symbol, price))
-
-        return results
+        return [(symbol, data.get(coin, {}).get("usd", "N/A")) for coin, symbol in COINS.items()]
 
     except Exception:
         return [(symbol, "N/A") for symbol in COINS.values()]
 
-def print_crypto():
-    coins = fetch_crypto()
 
-    section("Crypto Market", "💎")
-
-    for symbol, price in coins:
-        print(row(symbol, f"${price}"))
-
-    section_end()
-
+# ───────────── STOCKS ─────────────
 TICKERS = {
     "AAPL": "Apple",
     "GOOGL": "Google",
     "TSLA": "Tesla"
 }
 
+
 def fetch_stocks():
     try:
-        if is_cache_valid(STOCKS_CAHCE):
-            with open(STOCKS_CAHCE) as f:
+        if is_cache_valid(STOCKS_CACHE):
+            with open(STOCKS_CACHE) as f:
                 data = json.load(f)
         else:
             symbols = ",".join(TICKERS.keys())
             url = f"https://query1.finance.yahoo.com/v7/finance/quote?symbols={symbols}"
             headers = {"User-Agent": "Mozilla/5.0"}
+
             data = requests.get(url, headers=headers, timeout=5).json()
 
-            # only save if we got real quotes
-            quotes = data.get("quoteResponse", {}).get("result", [])
-            if quotes:
-                with open(STOCKS_CAHCE, "w") as f:
+            if data.get("quoteResponse", {}).get("result"):
+                with open(STOCKS_CACHE, "w") as f:
                     json.dump(data, f)
 
-        results = []
         quotes = data.get("quoteResponse", {}).get("result", [])
-        for q in quotes:
-            ticker = q.get("symbol")
-            price = q.get("regularMarketPrice", "N/A")
-            results.append((ticker, price))
 
-        return results
+        return [(q.get("symbol"), q.get("regularMarketPrice", "N/A")) for q in quotes]
 
     except Exception:
         return [(ticker, "N/A") for ticker in TICKERS.keys()]
 
+
+# ───────────── NEWS ─────────────
+DEMO_NEWS = [
+    {"title": "AI is transforming the tech industry", "source": "TechCrunch"},
+    {"title": "Stock markets hit new highs globally", "source": "Reuters"},
+    {"title": "New breakthrough in renewable energy", "source": "BBC"},
+]
+
+
+def fetch_news():
+    try:
+        if not NEWS_API_KEY:
+            return DEMO_NEWS
+
+        url = "https://newsdata.io/api/1/news"
+
+        params = {
+            "apikey": NEWS_API_KEY,
+            "language": "en",
+            "category": "technology,business"
+        }
+
+        data = requests.get(url, params=params, timeout=5).json()
+
+        articles = data.get("results", [])[:5]
+
+        return [
+            {
+                "title": a.get("title", "No title"),
+                "source": a.get("source_id", "Unknown")
+            }
+            for a in articles
+        ]
+
+    except Exception:
+        return DEMO_NEWS
+
+
+# ───────────── PRINT FUNCTIONS ─────────────
+def print_weather():
+    city, temp, desc = fetch_weather()
+    section("Weather Report", "🌡")
+    print(row("Location", city))
+    print(row("Temperature", g(f"{temp}°C", C.GREEN)))
+    print(row("Condition", desc))
+    section_end()
+
+
+def print_crypto():
+    section("Crypto Market", "💎")
+    for symbol, price in fetch_crypto():
+        print(row(symbol, f"${price}"))
+    section_end()
+
+
 def print_stocks():
-    stocks = fetch_stocks()
-
     section("Stock Market", "📈")
-
-    for ticker, price in stocks:
+    for ticker, price in fetch_stocks():
         print(row(ticker, f"${price}"))
+    section_end()
 
+
+def print_news():
+    section("Top News", "📰")
+    for i, a in enumerate(fetch_news(), 1):
+        print(f"  {i}. {a['title']}")
+        print(f"     Source: {a['source']}\n")
     section_end()
 
 
@@ -210,3 +242,4 @@ if __name__ == "__main__":
     print_weather()
     print_crypto()
     print_stocks()
+    print_news()
